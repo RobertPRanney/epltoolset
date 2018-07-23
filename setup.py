@@ -1,11 +1,31 @@
-from setuptools import setup
+import setuptools
 
-setup(name='epltoolset',
-      version='0.1',
-      description='Toolset to simplify Oralce ETL script creation',
-      url='http://github.com.robertpranney/epltoolste',
-      author='Robert Ranney',
-      author_email='robertpranney@gmail.com',
-      license='MIT',
-      packages=['epltoolset'],
-      zip_safe=False)
+def readme():
+    with open("README.md", "r") as in_file:
+        return in_file.read()
+
+setuptools.setup(
+    name="epltoolset",
+    version="0.2.2",
+    description="Simplify Oracle ETL scripts",
+    long_description=readme(),
+    long_description_content_type="text/markdown",
+    url='http://github.com.robertpranney/epltoolset',
+    author='Robert Ranney',
+    author_email='robertpranney@gmail.com',
+    packages=['epltoolset'],
+    include_package_data=True,
+    test_suite='nose.collector',
+    tests_require=['nose'],
+    install_requires=[
+        'markdown',
+    ],
+    classifiers=(
+        "Development Status :: 3 - Alpha",
+        "Programming Language :: Python :: 3.6",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        "Topic :: Database :: Front-Ends"
+    ),
+    scripts=['bin/manage-oracle-creds'],
+)

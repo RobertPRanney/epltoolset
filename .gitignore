@@ -1,0 +1,14 @@
+# Compiled Python Modules
+*.pyc
+
+# Setuptools distribution folder
+dist/
+
+# Python egg metadata. generated from source
+/*.egg-info
+
+# This packages uses .creds for oracle cred files
+*.creds
+
+# Extra files not needed I dont think
+build/

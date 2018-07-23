@@ -1,0 +1,228 @@
+#!/usr/bin/env python
+"""
+FILE: manage-oracle-creds
+AUTHOR: Robert Ranney
+DESCR: Simple program to add credentials to local directory in a consistent
+       manner. Package as part of the epltoolset.
+USAGE: python manage-oracle-creds
+"""
+
+# STANDARD IMPORT STATEMENTS
+import os
+import json
+
+# CONSTANT DECLARATIONS
+DEFAULT_CRED_FILE = ".connectcreds.creds"
+START_MESSAGE = "------MANAGE ORACLE CREDENTIALS------"
+START_MENU = "\nOptions\n" \
+             "  (C)reate new cred file\n  (M)anage Cred Files\n" \
+             "  (S)ee cred files\n  (E)xit"
+EDIT_MENU  = "\nOptions - File: {}\n" \
+             "  (A)dd or edit Credentials\n  (V)iew Credentials\n" \
+             "  (R)emove Credentials\n  (E)xit"
+
+
+# LOCAL FUNCTION DEFINITIONS
+def start_menu():
+    """
+    DESCR: Main top menu that has choices for cred files
+    INPUT: None
+    OUTPUT: None
+    """
+    # Only exit by user choice
+    while True:
+        # Provied menu each pass
+        print(START_MENU)
+
+        # Collect user decision
+        choice = input(">>> ").lower().rstrip()
+
+        # User Quits program
+        if choice == "e":
+            break
+
+        # User creates a new credential file
+        elif choice == "c":
+            create_new_file()
+
+        # User wants to manage existing credential files
+        elif choice == "m":
+            manage_cred_files()
+
+        # User wants to see which files alread exists
+        elif choice == "s":
+            see_cred_files()
+
+        # User hit a different option
+        else:
+            print("Choice Not Recognized\n")
+
+
+def create_new_file():
+    """
+    DESCR: creates a new file, intially is just an empty json file
+    INPUT: None
+    OUTPUT: None
+    """
+    # Show user current files and save as list
+    current_files = see_cred_files()
+
+    # See if default file exists to see if should be suggested
+    if DEFAULT_CRED_FILE not in current_files:
+        print(f"Default file - {DEFAULT_CRED_FILE} - not found")
+        choice = input("Create default file?(y/n)>>> ").lower().strip()
+
+        # If user wants to make the default tile and return
+        if choice == 'y':
+            with open(DEFAULT_CRED_FILE, 'w') as out_file:
+                json.dump({}, out_file, indent=4)
+            print(f"Created new file - {DEFAULT_CRED_FILE}")
+            return None
+
+    # Creating a file with a new new name
+    file_name = input("Filename? or c to cancel>>> ").lower().strip()
+    if file_name == 'c':
+        return None
+    with open(file_name, 'w') as out_file:
+        json.dump({}, out_file, indent=4)
+    print(f"Created new file - {file_name}")
+
+
+def manage_cred_files():
+    """
+    DESCR: Show users cred files they can alter and give altering options
+    INPUT: None
+    OUTPUT: None
+    """
+    while True:
+        # Display files and keep as a list
+        current_files = see_cred_files()
+
+        # Go back up menu if no files present
+        if not current_files:
+            break
+
+        # Show user extra option to leave menu
+        print("  e) Go Back")
+
+        # Gather user choice
+        choice = input("Edit which file?>>> ").lower().strip()
+
+        # If e then exit menu
+        if choice == 'e':
+            break
+
+        # if user chooses a non digit exit
+        if not choice.isdigit():
+            print("Choice not recognized")
+            break
+
+        # Alter choice to use in list indexinfg
+        file_ind = int(choice) - 1
+
+        # Exit if user selected someting no in list
+        if file_ind >= len(current_files):
+            print("Choice not in list")
+            break
+
+        # All consideration met to alter a fiel
+        else:
+            edit_cred_file(current_files[file_ind])
+
+
+def edit_cred_file(file_name):
+    """
+    DESCR: Options to change  a single credential file
+    INPUT: file_name - str - which file to alter
+    OUTPUT: None
+    """
+    # Read in credentials to a dictionary
+    with open(file_name, 'r') as in_file:
+        cred_dict = json.load(in_file)
+
+    # Allow many alterations of file
+    while True:
+        # Show file altering menu
+        print(EDIT_MENU.format(file_name))
+        choice = input("Do What?>>> ").lower().rstrip()
+
+        # User chooses to stop editing
+        if choice == "e":
+            with open(file_name, 'w') as out_file:
+                json.dump(cred_dict, out_file, indent=4)
+            break
+
+        # User wants to add or change a set
+        elif choice == "a":
+            cred_set_name = input("  Cred Set Name?>>> ")
+            host = input("  Host?>>> ")
+            port = int(input("  Port?>>> "))
+            sid = input("  SID?>>> ")
+            username = input("  Username?>>> ")
+            password = input("  Password?>>> ")
+            cred_dict[cred_set_name] = {"HOST": host,
+                                        "PORT": port,
+                                        "SID": sid,
+                                        "USERNAME": username,
+                                        "PASSWORD": password}
+            with open(file_name, 'w') as out_file:
+                json.dump(cred_dict, out_file, indent=4)
+            print(f"{cred_set_name} added to {file_name}")
+
+        # User wants to remove an existing set
+        elif choice == "r":
+            remove_item = input("Remove Which?>>> ").lower().strip()
+            if remove_item in cred_dict:
+                del cred_dict['']
+                with open(file_name, 'w') as out_file:
+                    json.dump(cred_dict, out_file, indent=4)
+                print(f"{remove_item} removed")
+            else:
+                print(f"{remove_item} not in credentials")
+
+        # Show all sets in current file
+        elif choice == "v":
+            print("Credential Sets In File")
+            for key, val in cred_dict.items():
+                print(f"  {key}:")
+                for key, val in val.items():
+                    print(f"    {key} - {val}")
+        else:
+            print("Choice Not Recognized\n")
+
+
+def see_cred_files():
+    """
+    DESCR: Show all currently found files
+    INPUT: None
+    OUTPUT: list - list of found files
+    """
+    # Get all files and print them nicely
+    current_files = all_cred_files()
+    if current_files:
+        print("Current Files")
+        for ind, file_name in enumerate(current_files):
+            print(f"  {ind + 1})  {file_name}")
+    else:
+        print("No cred files found")
+    return current_files
+
+
+def all_cred_files():
+    """
+    DESCR: gather all cred files
+    INPUT: None
+    OUTPUT: list - list of credential files
+    """
+    found_files = []
+    for item in os.listdir():
+        if os.path.isfile(item) and item.endswith('.creds'):
+            found_files.append(item)
+    return found_files
+
+
+# MAIN DRIVER CODE
+if __name__ == '__main__':
+    # Simply print start message and then enter menu driven program
+    print(START_MESSAGE)
+    start_menu()
