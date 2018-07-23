@@ -19,6 +19,7 @@ setuptools.setup(
     tests_require=['nose'],
     install_requires=[
         'markdown',
+        'cx_Oracle',
     ],
     classifiers=(
         "Development Status :: 3 - Alpha",
