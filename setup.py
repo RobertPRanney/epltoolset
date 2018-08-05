@@ -6,7 +6,7 @@ def readme():
 
 setuptools.setup(
     name="epltoolset",
-    version="0.2.2",
+    version="0.2.7",
     description="Simplify Oracle ETL scripts",
     long_description=readme(),
     long_description_content_type="text/markdown",
@@ -15,6 +15,7 @@ setuptools.setup(
     author_email='robertpranney@gmail.com',
     packages=['epltoolset'],
     include_package_data=True,
+    python_requires='>=3.6',
     test_suite='nose.collector',
     tests_require=['nose'],
     install_requires=[

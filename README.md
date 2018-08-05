@@ -2,7 +2,10 @@
 
 A package to make oracle-python ETL script development easier.
 
+```shell
+manage-oracle-creds
+```
+
 ```python
-import something
-something.hello()
+from epltoolset import Credentials, PdConnection
 ```
