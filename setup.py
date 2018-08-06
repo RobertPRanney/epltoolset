@@ -6,7 +6,7 @@ def readme():
 
 setuptools.setup(
     name="epltoolset",
-    version="0.2.7",
+    version="0.2.8",
     description="Simplify Oracle ETL scripts",
     long_description=readme(),
     long_description_content_type="text/markdown",
@@ -21,6 +21,7 @@ setuptools.setup(
     install_requires=[
         'markdown',
         'cx_Oracle',
+        'pandas'
     ],
     classifiers=(
         "Development Status :: 3 - Alpha",

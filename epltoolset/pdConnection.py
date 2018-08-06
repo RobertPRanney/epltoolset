@@ -10,6 +10,7 @@ USAGE: from pdConnection import PdConnection
 
 # STANDARD IMPORT STATEMENTS
 import os
+import re
 import json
 
 # THIRD PARTY IMPORT STATEMENTS
@@ -19,6 +20,13 @@ import pandas as pd
 
 # CONSTANT DECLARATIONS
 DEFAULT_FETCH_SIZE = 250000
+
+# MAPPINGS
+PD_TO_ORACLE_TYPES = {
+    'int64': 'int',
+    'object': 'varchar(255)',
+    'float64': 'float'
+}
 
 
 # LOCAL CLASS DEFINTIONS
@@ -147,7 +155,7 @@ class PdConnection(object):
         with open(self.cred_file, 'r') as in_json:
             cred_dict = json.load(in_json)
 
-        return list(cred_dict.items())
+        return list(cred_dict.keys())
 
 
     def load_cred_set(self):
@@ -184,6 +192,10 @@ class PdConnection(object):
         INPUT: None
         OUTPUT: bool - True is no errors on connection else False
         """
+        if self.creds is None:
+            print(f"Credentials Not Loaded")
+            return False
+
         # Package into dsn for simpler use
         dsn = cx_Oracle.makedsn(self.creds.host,
                                 self.creds.port,
@@ -192,7 +204,7 @@ class PdConnection(object):
         # Test connection, if errors arise they can be checked elsewhere
         try:
             conn = cx_Oracle.connect(self.creds.username,
-                                     self.creds.username,
+                                     self.creds.password,
                                      dsn)
             test_conn = conn.ping()
             if test_conn is None:
@@ -207,10 +219,27 @@ class PdConnection(object):
         INPUT: None
         OUPUT: self
         """
+        # Load creds is implied if not done yet
+        if self.creds is None:
+            self.load_cred_set()
+
+        # Don't let connections pile up
+        if self.conn is not None:
+            self.conn.close()
+
         # Package into dsn for simpler use
         dsn = cx_Oracle.makedsn(self.creds.host, self.creds.port, self.creds.sid)
-        self.conn = cx_Oracle.connect(self.creds.username, self.creds.username, dsn)
+        self.conn = cx_Oracle.connect(self.creds.username, self.creds.password, dsn)
         return self
+
+
+    def is_connected(self):
+        """
+        DESCR: check if object has an active connection
+        INPUT: None
+        OUTPUT: bool - True is connection is not None
+        """
+        return self.conn is not None
 
 
     def close_connection(self):
@@ -225,6 +254,27 @@ class PdConnection(object):
         # Close and reset
         self.conn.close()
         self.conn = None
+        return self
+
+
+    def execute_sql(self, sql, keep_open=False):
+        """allow the connection to execute and arbitrary sql"""
+        # Make sure we have a connection before using it
+        if self.conn is None:
+            self.make_connection()
+
+        # Execute the query
+        cursor = self.conn.cursor()
+        cursor.execute(sql)
+
+        # commit sql statement
+        self.conn.commit()
+
+        # Clean up cursor and maybe connection
+        cursor.close()
+        if not keep_open:
+            self.close_connection()
+
         return self
 
 
@@ -251,13 +301,82 @@ class PdConnection(object):
         data = cursor.fetchall()
         df = pd.DataFrame(data, columns=columns)
 
-        # Cleanup up curosr,and maybe connection
+        # Cleanup up curosr, and maybe connection
         cursor.close()
         if not keep_open:
             self.close_connection()
 
         return df
 
+
+    def df_to_table(self, df, table_name, keep_open=False, drop_existing=False,
+                    subset=None):
+        """
+        DESCR: given a dataframe insert it into an oracle table
+        INPUT: df - pd.DataFrame - dataframe to turn into table
+               table_name - str - name of new table
+               keep_open - bool - if false close connection
+        OUTPUT: self
+        """
+        # Get Rid of existing table if needed
+        if drop_existing:
+            try:
+                self.execute_sql(f"DROP TABLE {table_name}")
+            except:
+                pass
+
+        # Create the table
+        sql = self.ddl_string_from_df(df, table_name)
+        self.execute_sql(sql)
+
+        # Insert into table
+        sql = self.insert_bind_string_from_df(df, table_name)
+        # Make sure we have a connection before trying to use it
+        if self.conn is None:
+            self.make_connection()
+        cursor = self.conn.cursor()
+        cursor.prepare(sql)
+
+        insert_values = df.values.tolist()
+        cursor.executemany(None, insert_values)
+        self.conn.commit()
+
+        return self
+
+
+    @staticmethod
+    def ddl_string_from_df(df, table_name):
+        """
+        DESCR: from a dataframe generate a string for table creation
+        INPUT: df - pd.DataFrame - used to generate the string
+               table_name - str - what table to use in the string name
+        OUTPUT: str - ready to execute sql string
+        """
+        sql = f"CREATE TABLE {table_name} (\n"
+
+        for col_name, dtype  in df.dtypes.items():
+            oracle_type = PD_TO_ORACLE_TYPES[dtype.name]
+            sql += f"    {col_name} {oracle_type},\n"
+        sql = sql[:-2] + "\n)"
+        return sql
+
+
+    @staticmethod
+    def insert_bind_string_from_df(df, table_name, subset=None):
+        """
+        DESCR: from a dataframe generate a string usable for insert statements
+        INPUT: df - pd.DataFrame - used to generate the string
+               table_name - str - what table to use in the string name
+        OUTPUT: str - ready to execute sql string
+        """
+        if subset is None:
+            subset = df.columns.tolist()
+        col_str = ', '.join(subset)
+
+        val_str = ', '.join([f":{str(x+1)}" for x in range(len(subset))])
+
+        sql = f"INSERT INTO {table_name} ({col_str}) values ({val_str})"
+        return sql
 
 
     def __str__(self):
@@ -267,20 +386,20 @@ class PdConnection(object):
         OUTPUT str - pretty version of object
         """
         # Always present stuff
-        pretty_string = f"Cred File: {self.cred_file}"
-        pretty_string += f"Cred Set: {self.cred_set}"
+        pretty_string = f"Cred File: {self.cred_file}\n"
+        pretty_string += f"Cred Set: {self.cred_set}\n"
 
         # See if creds loaded
         if self.creds is None:
-            pretty_string += f"Creds: Not Loaded"
+            pretty_string += f"Creds: Not Loaded\n"
         else:
-            pretty_string += f"Creds: Loaded"
+            pretty_string += f"Creds: Loaded\n"
 
         # See if connection open
         if self.conn is None:
-            pretty_string += f"Conn: Not Open"
+            pretty_string += f"Conn: Not Open\n"
         else:
-            pretty_string += f"Conn: Open"
+            pretty_string += f"Conn: Open\n"
 
         return self
 
@@ -293,3 +412,4 @@ class PdConnection(object):
         """
         if self.conn is not None:
             self.conn.close()
+        del self
