@@ -12,3 +12,9 @@ dist/
 
 # Extra files not needed I dont think
 build/
+
+# Just for Testing
+example_script.py
+
+# My notes to help me remember development commands
+DEVNOTES.md

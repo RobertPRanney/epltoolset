@@ -24,8 +24,9 @@ DEFAULT_FETCH_SIZE = 250000
 # MAPPINGS
 PD_TO_ORACLE_TYPES = {
     'int64': 'int',
-    'object': 'varchar(255)',
-    'float64': 'float'
+    'object': 'varchar2(255)',
+    'float64': 'number',
+    'datetime64[ns]': 'date'
 }
 
 
@@ -93,7 +94,8 @@ class Credentials(object):
 
 class PdConnection(object):
     """
-    TBD
+    The PdConnection Class is used to abstract away some of the cx_Oracle and
+    pandas functioning
     """
 
     def __init__(self, cred_set=None, cred_file='.connectcreds.creds',
